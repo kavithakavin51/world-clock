@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chronos — World Clock</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-pink: #ff00ff;
+            --neon-purple: #bc13fe;
+            --neon-gold: #ffd700;
+            --glass-bg: rgba(10, 10, 30, 0.6);
+            --glass-border: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: #050510;
+            min-height: 100vh;
+            overflow-x: hidden;
+            color: #fff;
+        }
+
+        /* Animated Background Canvas */
+        #bgCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Main Container */
+        .container {
+            position: relative;
+            z-index: 1;
+            padding: 40px 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* Animated Header */
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            position: relative;
+        }
+
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(2.5rem, 6vw, 5rem);
+            font-weight: 900;
+            letter-spacing: 8px;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink), var(--neon-gold), var(--neon-cyan));
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 4s ease infinite;
+            position: relative;
+            display: inline-block;
+        }
+
+        .header h1::after {
+            content: 'CHRONOS';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink), var(--neon-gold));
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: blur(20px);
+            opacity: 0.5;
+            animation: gradientShift 4s ease infinite;
+            z-index: -1;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            color: rgba(255,255,255,0.5);
+            margin-top: 10px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            animation: fadeInUp 1s ease 0.3s both;
+        }
+
+        /* Search Bar */
+        .search-wrapper {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 50px;
+            animation: fadeInUp 1s ease 0.5s both;
+        }
+
+        .search-box {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 18px 25px;
+            padding-left: 55px;
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            outline: none;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.05);
+        }
+
+        .search-box input:focus {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.2), inset 0 0 20px rgba(0, 243, 255, 0.05);
+            transform: scale(1.02);
+        }
+
+        .search-box::before {
+            content: '⌕';
+            position: absolute;
+            left: 22px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.4rem;
+            color: var(--neon-cyan);
+            animation: pulse 2s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        /* Clock Grid */
+        .clock-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 30px;
+            perspective: 1000px;
+        }
+
+        /* Clock Card */
+        .clock-card {
+            position: relative;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 30px;
+            overflow: hidden;
+            transform-style: preserve-3d;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            transform: translateY(60px) rotateX(15deg);
+            animation: cardEnter 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            cursor: pointer;
+        }
+
+        .clock-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+            transition: left 0.7s;
+        }
+
+        .clock-card:hover::before {
+            left: 100%;
+        }
+
+        .clock-card:hover {
+            transform: translateY(-10px) rotateX(5deg) scale(1.03);
+            border-color: rgba(0, 243, 255, 0.3);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5),
+                        0 0 40px rgba(0, 243, 255, 0.1),
+                        inset 0 0 30px rgba(0, 243, 255, 0.03);
+        }
+
+        .clock-card.hidden {
+            animation: cardExit 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            pointer-events: none;
+        }
+
+        @keyframes cardEnter {
+            to {
+                opacity: 1;
+                transform: translateY(0) rotateX(0deg);
+            }
+        }
+
+        @keyframes cardExit {
+            to {
+                opacity: 0;
+                transform: scale(0.8) rotateY(20deg);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Card Header */
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .city-info h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 2px;
+            margin-bottom: 4px;
+        }
+
+        .city-info span {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.5);
+            letter-spacing: 1px;
+        }
+
+        /* Day/Night Badge */
+        .badge {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.4s ease;
+            border: 1px solid transparent;
+        }
+
+        .badge.day {
+            background: rgba(255, 193, 7, 0.15);
+            color: var(--neon-gold);
+            border-color: rgba(255, 193, 7, 0.3);
+            box-shadow: 0 0 15px rgba(255, 193, 7, 0.2);
+        }
+
+        .badge.night {
+            background: rgba(188, 19, 254, 0.15);
+            color: var(--neon-purple);
+            border-color: rgba(188, 19, 254, 0.3);
+            box-shadow: 0 0 15px rgba(188, 19, 254, 0.2);
+        }
+
+        .badge .icon {
+            font-size: 1.1rem;
+            animation: rotate 10s linear infinite;
+        }
+
+        .badge.day .icon {
+            animation: rotate 8s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Analog Clock SVG */
+        .analog-clock {
+            width: 160px;
+            height: 160px;
+            margin: 0 auto 20px;
+            position: relative;
+            filter: drop-shadow(0 0 20px rgba(0, 243, 255, 0.2));
+        }
+
+        .analog-clock svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .clock-face {
+            fill: none;
+            stroke: rgba(255,255,255,0.1);
+            stroke-width: 2;
+        }
+
+        .clock-rim {
+            fill: none;
+            stroke: url(#rimGradient);
+            stroke-width: 3;
+            filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.5));
+        }
+
+        .hour-marker {
+            stroke: rgba(255,255,255,0.3);
+            stroke-width: 2;
+            stroke-linecap: round;
+        }
+
+        .hand {
+            stroke-linecap: round;
+            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: center;
+        }
+
+        .hour-hand {
+            stroke: #fff;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 5px rgba(255,255,255,0.5));
+        }
+
+        .minute-hand {
+            stroke: var(--neon-cyan);
+            stroke-width: 3;
+            filter: drop-shadow(0 0 5px rgba(0, 243, 255, 0.5));
+        }
+
+        .second-hand {
+            stroke: var(--neon-pink);
+            stroke-width: 2;
+            filter: drop-shadow(0 0 8px rgba(255, 0, 255, 0.8));
+        }
+
+        .center-dot {
+            fill: var(--neon-cyan);
+            filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.8));
+        }
+
+        /* Digital Time */
+        .digital-time {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .digital-time .time {
+            font-family: 'Orbitron', monospace;
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: 4px;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
+            position: relative;
+            display: inline-block;
+        }
+
+        .digital-time .time .colon {
+            animation: blink 1s step-end infinite;
+            color: var(--neon-pink);
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .digital-time .date {
+            font-size: 0.95rem;
+            color: rgba(255,255,255,0.6);
+            letter-spacing: 2px;
+            margin-top: 5px;
+            text-transform: uppercase;
+        }
+
+        /* Time Zone Offset */
+        .offset {
+            text-align: center;
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.4);
+            letter-spacing: 1px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            margin-top: 10px;
+        }
+
+        .offset span {
+            color: var(--neon-cyan);
+            font-weight: 600;
+        }
+
+        /* Corner Decorations */
+        .corner {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 2px solid transparent;
+            transition: all 0.4s ease;
+        }
+
+        .corner.top-left {
+            top: 15px;
+            left: 15px;
+            border-top-color: var(--neon-cyan);
+            border-left-color: var(--neon-cyan);
+        }
+
+        .corner.top-right {
+            top: 15px;
+            right: 15px;
+            border-top-color: var(--neon-cyan);
+            border-right-color: var(--neon-cyan);
+        }
+
+        .corner.bottom-left {
+            bottom: 15px;
+            left: 15px;
+            border-bottom-color: var(--neon-cyan);
+            border-left-color: var(--neon-cyan);
+        }
+
+        .corner.bottom-right {
+            bottom: 15px;
+            right: 15px;
+            border-bottom-color: var(--neon-cyan);
+            border-right-color: var(--neon-cyan);
+        }
+
+        .clock-card:hover .corner {
+            width: 40px;
+            height: 40px;
+            border-color: var(--neon-pink);
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #050510;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(var(--neon-cyan), var(--neon-pink));
+            border-radius: 4px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { padding: 20px 15px; }
+            .clock-grid { grid-template-columns: 1fr; gap: 20px; }
+            .analog-clock { width: 130px; height: 130px; }
+            .digital-time .time { font-size: 1.8rem; }
+        }
+
+        /* Loading Screen */
+        .loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #050510;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.8s ease, visibility 0.8s;
+        }
+
+        .loader.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .loader-ring {
+            width: 80px;
+            height: 80px;
+            border: 3px solid transparent;
+            border-top-color: var(--neon-cyan);
+            border-right-color: var(--neon-pink);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loader-text {
+            margin-top: 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            letter-spacing: 4px;
+            color: var(--neon-cyan);
+            animation: pulse 1.5s ease infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Floating particles overlay on cards */
+        .particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            border-radius: 24px;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--neon-cyan);
+            border-radius: 50%;
+            opacity: 0;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(100%) scale(0); opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { transform: translateY(-20%) scale(1); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div class="loader" id="loader">
+        <div class="loader-ring"></div>
+        <div class="loader-text">INITIALIZING CHRONOS</div>
+    </div>
+
+    <!-- Background Animation -->
+    <canvas id="bgCanvas"></canvas>
+
+    <!-- SVG Definitions for Gradients -->
+    <svg width="0" height="0" style="position:absolute;">
+        <defs>
+            <linearGradient id="rimGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#00f3ff;stop-opacity:1" />
+                <stop offset="50%" style="stop-color:#bc13fe;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#00f3ff;stop-opacity:1" />
+            </linearGradient>
+        </defs>
+    </svg>
+
+    <div class="container">
+        <header class="header">
+            <h1>CHRONOS</h1>
+            <p>Global Temporal Observatory</p>
+        </header>
+
+        <div class="search-wrapper">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search city or country..." autocomplete="off">
+            </div>
+        </div>
+
+        <div class="clock-grid" id="clockGrid"></div>
+    </div>
+
+    <script>
+        // ==================== DATA ====================
+        const cities = [
+            { name: "New York", country: "USA", timezone: "America/New_York" },
+            { name: "London", country: "United Kingdom", timezone: "Europe/London" },
+            { name: "Paris", country: "France", timezone: "Europe/Paris" },
+            { name: "Tokyo", country: "Japan", timezone: "Asia/Tokyo" },
+            { name: "Sydney", country: "Australia", timezone: "Australia/Sydney" },
+            { name: "Dubai", country: "UAE", timezone: "Asia/Dubai" },
+            { name: "Mumbai", country: "India", timezone: "Asia/Kolkata" },
+            { name: "Beijing", country: "China", timezone: "Asia/Shanghai" },
+            { name: "Moscow", country: "Russia", timezone: "Europe/Moscow" },
+            { name: "Los Angeles", country: "USA", timezone: "America/Los_Angeles" },
+            { name: "Berlin", country: "Germany", timezone: "Europe/Berlin" },
+            { name: "Singapore", country: "Singapore", timezone: "Asia/Singapore" },
+            { name: "Hong Kong", country: "China", timezone: "Asia/Hong_Kong" },
+            { name: "Seoul", country: "South Korea", timezone: "Asia/Seoul" },
+            { name: "Bangkok", country: "Thailand", timezone: "Asia/Bangkok" },
+            { name: "Istanbul", country: "Turkey", timezone: "Europe/Istanbul" },
+            { name: "Cairo", country: "Egypt", timezone: "Africa/Cairo" },
+            { name: "Johannesburg", country: "South Africa", timezone: "Africa/Johannesburg" },
+            { name: "São Paulo", country: "Brazil", timezone: "America/Sao_Paulo" },
+            { name: "Mexico City", country: "Mexico", timezone: "America/Mexico_City" },
+            { name: "Toronto", country: "Canada", timezone: "America/Toronto" },
+            { name: "Vancouver", country: "Canada", timezone: "America/Vancouver" },
+            { name: "Rome", country: "Italy", timezone: "Europe/Rome" },
+            { name: "Madrid", country: "Spain", timezone: "Europe/Madrid" },
+            { name: "Amsterdam", country: "Netherlands", timezone: "Europe/Amsterdam" },
+            { name: "Zurich", country: "Switzerland", timezone: "Europe/Zurich" },
+            { name: "Stockholm", country: "Sweden", timezone: "Europe/Stockholm" },
+            { name: "Vienna", country: "Austria", timezone: "Europe/Vienna" },
+            { name: "Warsaw", country: "Poland", timezone: "Europe/Warsaw" },
+            { name: "Athens", country: "Greece", timezone: "Europe/Athens" },
+            { name: "Buenos Aires", country: "Argentina", timezone: "America/Argentina/Buenos_Aires" },
+            { name: "Lima", country: "Peru", timezone: "America/Lima" },
+            { name: "Bogotá", country: "Colombia", timezone: "America/Bogota" },
+            { name: "Jakarta", country: "Indonesia", timezone: "Asia/Jakarta" },
+            { name: "Manila", country: "Philippines", timezone: "Asia/Manila" },
+            { name: "Kuala Lumpur", country: "Malaysia", timezone: "Asia/Kuala_Lumpur" },
+            { name: "Riyadh", country: "Saudi Arabia", timezone: "Asia/Riyadh" },
+            { name: "Tehran", country: "Iran", timezone: "Asia/Tehran" },
+            { name: "Karachi", country: "Pakistan", timezone: "Asia/Karachi" },
+            { name: "Dhaka", country: "Bangladesh", timezone: "Asia/Dhaka" },
+            { name: "Colombo", country: "Sri Lanka", timezone: "Asia/Colombo" },
+            { name: "Nairobi", country: "Kenya", timezone: "Africa/Nairobi" },
+            { name: "Lagos", country: "Nigeria", timezone: "Africa/Lagos" },
+            { name: "Casablanca", country: "Morocco", timezone: "Africa/Casablanca" },
+            { name: "Tel Aviv", country: "Israel", timezone: "Asia/Jerusalem" },
+            { name: "Helsinki", country: "Finland", timezone: "Europe/Helsinki" },
+            { name: "Oslo", country: "Norway", timezone: "Europe/Oslo" },
+            { name: "Copenhagen", country: "Denmark", timezone: "Europe/Copenhagen" },
+            { name: "Prague", country: "Czech Republic", timezone: "Europe/Prague" },
+            { name: "Budapest", country: "Hungary", timezone: "Europe/Budapest" },
+            { name: "Lisbon", country: "Portugal", timezone: "Europe/Lisbon" },
+            { name: "Brussels", country: "Belgium", timezone: "Europe/Brussels" },
+            { name: "Dublin", country: "Ireland", timezone: "Europe/Dublin" },
+            { name: "Reykjavik", country: "Iceland", timezone: "Atlantic/Reykjavik" }
+        ];
+
+        // ==================== BACKGROUND CANVAS ====================
+        const canvas = document.getElementById('bgCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let mouseX = 0, mouseY = 0;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2 + 0.5;
+                this.speedX = (Math.random() - 0.5) * 0.5;
+                this.speedY = (Math.random() - 0.5) * 0.5;
+                this.opacity = Math.random() * 0.5 + 0.2;
+                this.hue = Math.random() > 0.5 ? 180 : 280; // cyan or purple
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                
+                // Mouse interaction
+                const dx = mouseX - this.x;
+                const dy = mouseY - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 150) {
+                    this.x -= dx * 0.02;
+                    this.y -= dy * 0.02;
+                }
+                
+                if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+                    this.reset();
+                }
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${this.hue}, 100%, 70%, ${this.opacity})`;
+                ctx.fill();
+            }
+        }
+
+        // Create particles
+        for (let i = 0; i < 100; i++) {
+            particles.push(new Particle());
+        }
+
+        // Draw connecting lines
+        function drawConnections() {
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < 120) {
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.strokeStyle = `rgba(0, 243, 255, ${0.1 * (1 - dist / 120)})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function animateBg() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Subtle gradient background
+            const gradient = ctx.createRadialGradient(
+                canvas.width / 2, canvas.height / 2, 0,
+                canvas.width / 2, canvas.height / 2, canvas.width
+            );
+            gradient.addColorStop(0, 'rgba(10, 10, 40, 0.3)');
+            gradient.addColorStop(1, 'rgba(5, 5, 16, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            drawConnections();
+            requestAnimationFrame(animateBg);
+        }
+
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        animateBg();
+
+        // ==================== CLOCK CREATION ====================
+        function createClockCards() {
+            const grid = document.getElementById('clockGrid');
+            
+            cities.forEach((city, index) => {
+                const cardId = city.name.replace(/\s+/g, '-');
+                const delay = index * 0.05;
+                
+                const card = document.createElement('div');
+                card.className = 'clock-card';
+                card.dataset.search = (city.name + ' ' + city.country).toLowerCase();
+                card.style.animationDelay = `${delay}s`;
+                
+                // Generate floating particles for card
+                let cardParticles = '';
+                for (let i = 0; i < 5; i++) {
+                    const left = Math.random() * 100;
+                    const delay = Math.random() * 3;
+                    const duration = 2 + Math.random() * 2;
+                    cardParticles += `<div class="particle" style="left:${left}%;animation-delay:${delay}s;animation-duration:${duration}s;"></div>`;
+                }
+                
+                card.innerHTML = `
+                    <div class="particles">${cardParticles}</div>
+                    <div class="corner top-left"></div>
+                    <div class="corner top-right"></div>
+                    <div class="corner bottom-left"></div>
+                    <div class="corner bottom-right"></div>
+                    
+                    <div class="card-header">
+                        <div class="city-info">
+                            <h2>${city.name}</h2>
+                            <span>${city.country}</span>
+                        </div>
+                        <div class="badge" id="badge-${cardId}">
+                            <span class="icon">☀️</span>
+                            <span class="text">--</span>
+                        </div>
+                    </div>
+                    
+                    <div class="analog-clock">
+                        <svg viewBox="0 0 200 200">
+                            <circle class="clock-face" cx="100" cy="100" r="90"/>
+                            <circle class="clock-rim" cx="100" cy="100" r="90"/>
+                            
+                            <!-- Hour markers -->
+                            ${[...Array(12)].map((_, i) => {
+                                const angle = (i * 30) * Math.PI / 180;
+                                const x1 = 100 + 75 * Math.cos(angle);
+                                const y1 = 100 + 75 * Math.sin(angle);
+                                const x2 = 100 + 85 * Math.cos(angle);
+                                const y2 = 100 + 85 * Math.sin(angle);
+                                return `<line class="hour-marker" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+                            }).join('')}
+                            
+                            <!-- Hands -->
+                            <line class="hand hour-hand" id="hour-${cardId}" x1="100" y1="100" x2="100" y2="55"/>
+                            <line class="hand minute-hand" id="minute-${cardId}" x1="100" y1="100" x2="100" y2="35"/>
+                            <line class="hand second-hand" id="second-${cardId}" x1="100" y1="100" x2="100" y2="25"/>
+                            <circle class="center-dot" cx="100" cy="100" r="5"/>
+                        </svg>
+                    </div>
+                    
+                    <div class="digital-time">
+                        <div class="time" id="digital-${cardId}">
+                            <span class="h">--</span><span class="colon">:</span><span class="m">--</span><span class="colon">:</span><span class="s">--</span>
+                        </div>
+                        <div class="date" id="date-${cardId}">--</div>
+                    </div>
+                    
+                    <div class="offset" id="offset-${cardId}">UTC <span>--</span></div>
+                `;
+                
+                // 3D Tilt Effect
+                card.addEventListener('mousemove', (e) => {
+                    const rect = card.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    const centerX = rect.width / 2;
+                    const centerY = rect.height / 2;
+                    const rotateX = (y - centerY) / 20;
+                    const rotateY = (centerX - x) / 20;
+                    
+                    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-10px) scale(1.03)`;
+                });
+                
+                card.addEventListener('mouseleave', () => {
+                    card.style.transform = '';
+                });
+                
+                grid.appendChild(card);
+            });
+        }
+
+        // ==================== TIME UPDATE ====================
+        function getCityTime(timezone) {
+            const now = new Date();
+            const timeString = now.toLocaleString('en-US', { timeZone: timezone, hour12: false });
+            return new Date(timeString);
+        }
+
+        function updateClocks() {
+            const now = new Date();
+            
+            cities.forEach(city => {
+                const cardId = city.name.replace(/\s+/g, '-');
+                
+                // Get city time
+                const cityTimeStr = now.toLocaleString('en-US', { 
+                    timeZone: city.timezone, 
+                    hour12: false 
+                });
+                const cityDate = new Date(cityTimeStr);
+                
+                // Extract components
+                const hours = cityDate.getHours();
+                const minutes = cityDate.getMinutes();
+                const seconds = cityDate.getSeconds();
+                
+                // Analog clock angles
+                const secondAngle = (seconds * 6);
+                const minuteAngle = (minutes * 6) + (seconds * 0.1);
+                const hourAngle = ((hours % 12) * 30) + (minutes * 0.5);
+                
+                // Update analog hands
+                const secondHand = document.getElementById(`second-${cardId}`);
+                const minuteHand = document.getElementById(`minute-${cardId}`);
+                const hourHand = document.getElementById(`hour-${cardId}`);
+                
+                if (secondHand) secondHand.style.transform = `rotate(${secondAngle}deg)`;
+                if (minuteHand) minuteHand.style.transform = `rotate(${minuteAngle}deg)`;
+                if (hourHand) hourHand.style.transform = `rotate(${hourAngle}deg)`;
+                
+                // Digital time
+                const digitalEl = document.getElementById(`digital-${cardId}`);
+                if (digitalEl) {
+                    digitalEl.querySelector('.h').textContent = String(hours).padStart(2, '0');
+                    digitalEl.querySelector('.m').textContent = String(minutes).padStart(2, '0');
+                    digitalEl.querySelector('.s').textContent = String(seconds).padStart(2, '0');
+                }
+                
+                // Date
+                const dateEl = document.getElementById(`date-${cardId}`);
+                if (dateEl) {
+                    const dateStr = now.toLocaleDateString('en-US', {
+                        timeZone: city.timezone,
+                        weekday: 'long',
+                        month: 'short',
+                        day: 'numeric'
+                    });
+                    dateEl.textContent = dateStr;
+                }
+                
+                // Day/Night Badge
+                const isDay = hours >= 6 && hours < 18;
+                const badge = document.getElementById(`badge-${cardId}`);
+                if (badge) {
+                    badge.className = `badge ${isDay ? 'day' : 'night'}`;
+                    badge.innerHTML = `
+                        <span class="icon">${isDay ? '☀️' : '🌙'}</span>
+                        <span class="text">${isDay ? 'Day' : 'Night'}</span>
+                    `;
+                }
+                
+                // UTC Offset
+                const offsetEl = document.getElementById(`offset-${cardId}`);
+                if (offsetEl) {
+                    const offset = -cityDate.getTimezoneOffset() / 60; // Approximate
+                    // Better: calculate from actual timezone
+                    const utcTime = now.getTime();
+                    const cityTime = cityDate.getTime();
+                    const diffHours = Math.round((cityTime - utcTime) / 3600000);
+                    const sign = diffHours >= 0 ? '+' : '';
+                    offsetEl.innerHTML = `UTC <span>${sign}${diffHours}</span>`;
+                }
+            });
+        }
+
+        // ==================== SEARCH ====================
+        let searchTimeout;
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const term = e.target.value.toLowerCase().trim();
+                const cards = document.querySelectorAll('.clock-card');
+                
+                cards.forEach(card => {
+                    const searchData = card.dataset.search;
+                    if (term === '' || searchData.includes(term)) {
+                        card.classList.remove('hidden');
+                        // Re-trigger enter animation
+                        card.style.animation = 'none';
+                        card.offsetHeight; // Trigger reflow
+                        card.style.animation = '';
+                    } else {
+                        card.classList.add('hidden');
+                    }
+                });
+            }, 200);
+        });
+
+        // ==================== INIT ====================
+        createClockCards();
+        updateClocks();
+        setInterval(updateClocks, 1000);
+        
+        // Hide loader
+        setTimeout(() => {
+            document.getElementById('loader').classList.add('hidden');
+        }, 1500);
+    </script>
+</body>
+</html>
